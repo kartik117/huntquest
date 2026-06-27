@@ -1,0 +1,97 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  backend-test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install -e ".[dev]"
+      # Real in-memory SQLite (same Base.metadata as production) + fakeredis
+      # (including its GEOADD/GEOSEARCH support) -- no live Postgres/Redis
+      # needed for this job, but no Mongoose/SQLAlchemy mocking either.
+      - run: ruff check src tests
+      - run: pytest -v
+
+  frontend-build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run build
+
+  integration:
+    runs-on: ubuntu-latest
+    needs: [backend-test, frontend-build]
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker compose up -d --build
+
+      - name: Wait for api health
+        run: |
+          for i in $(seq 1 30); do
+            curl -sf http://localhost:8000/health && exit 0
+            sleep 2
+          done
+          echo "api never became healthy" >&2
+          exit 1
+
+      - name: Wait for the simulator to walk both teams through every real checkpoint
+        run: |
+          set -e
+          hunt_id="11111111-1111-1111-1111-111111111111"
+          for i in $(seq 1 30); do
+            board=$(curl -sf "http://localhost:8000/hunts/$hunt_id/teams")
+            echo "$board" | python3 -m json.tool
+            total=$(echo "$board" | python3 -c "import sys,json; print(sum(t['checkpoints_found'] for t in json.load(sys.stdin)))")
+            if [ "$total" -ge 10 ]; then
+              echo "Both simulated teams found all 5 real Seattle checkpoints (10 total)."
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "simulator never finished discovering checkpoints" >&2
+          exit 1
+
+      - name: A real client can join, get a session token, and see itself on the leaderboard
+        run: |
+          set -e
+          hunt_id="11111111-1111-1111-1111-111111111111"
+          resp=$(curl -sf -X POST "http://localhost:8000/hunts/$hunt_id/join" \
+            -H "Content-Type: application/json" \
+            -d '{"display_name":"CI Bot","team_name":"CI Testers"}')
+          echo "$resp" | python3 -m json.tool
+          echo "$resp" | python3 -c "import sys,json; d=json.load(sys.stdin); assert d['session_token']"
+
+          board=$(curl -sf "http://localhost:8000/hunts/$hunt_id/teams")
+          echo "$board" | python3 -c "
+import sys, json
+teams = json.load(sys.stdin)
+assert any(t['name'] == 'CI Testers' for t in teams), 'new team missing from leaderboard'
+"
+
+      - name: Frontend is reachable
+        run: curl -sf -o /dev/null http://localhost:3000/
+
+      - name: Dump container logs on failure
+        if: failure()
+        run: docker compose logs
