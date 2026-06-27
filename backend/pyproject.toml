@@ -1,0 +1,38 @@
+[project]
+name = "huntquest"
+version = "1.0.0"
+description = "Real-time map-based scavenger hunt -- live team location tracking over WebSockets, Redis GEO for proximity checks"
+requires-python = ">=3.11"
+dependencies = [
+    "fastapi==0.111.0",
+    "uvicorn[standard]==0.30.1",
+    "sqlalchemy==2.0.31",
+    "psycopg[binary]==3.2.1",
+    "pydantic==2.8.2",
+    "pydantic-settings==2.3.4",
+    "redis==5.0.7",
+    "websockets==12.0",
+    "httpx==0.27.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest==8.2.2",
+    "pytest-asyncio==0.23.7",
+    "fakeredis==2.23.3",
+    "ruff==0.5.1",
+]
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 110
