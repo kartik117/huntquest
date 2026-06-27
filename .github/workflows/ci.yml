@@ -84,10 +84,10 @@ jobs:
 
           board=$(curl -sf "http://localhost:8000/hunts/$hunt_id/teams")
           echo "$board" | python3 -c "
-import sys, json
-teams = json.load(sys.stdin)
-assert any(t['name'] == 'CI Testers' for t in teams), 'new team missing from leaderboard'
-"
+          import sys, json
+          teams = json.load(sys.stdin)
+          assert any(t['name'] == 'CI Testers' for t in teams), 'new team missing from leaderboard'
+          "
 
       - name: Frontend is reachable
         run: curl -sf -o /dev/null http://localhost:3000/
