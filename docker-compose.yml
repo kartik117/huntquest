@@ -1,0 +1,85 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: huntquest
+      POSTGRES_PASSWORD: huntquest
+      POSTGRES_DB: huntquest
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U huntquest"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  migrate:
+    build: ./backend
+    command: python -m huntquest.migrate
+    environment: &backend-env
+      HUNTQUEST_DATABASE_URL: postgresql+psycopg://huntquest:huntquest@postgres:5432/huntquest
+      HUNTQUEST_REDIS_HOST: redis
+      HUNTQUEST_REDIS_PORT: 6379
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+
+  seed:
+    build: ./backend
+    command: python -m huntquest.seed
+    environment: *backend-env
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    restart: "no"
+
+  api:
+    build: ./backend
+    ports:
+      - "8000:8000"
+    environment: *backend-env
+    depends_on:
+      seed:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+
+  simulator:
+    build: ./backend
+    command: python -m huntquest.simulator.run
+    environment:
+      <<: *backend-env
+      HUNTQUEST_API_HTTP: http://api:8000
+      HUNTQUEST_API_WS: ws://api:8000
+      HUNTQUEST_DEMO_HUNT_ID: "11111111-1111-1111-1111-111111111111"
+    depends_on:
+      - api
+    restart: "no"
+
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        VITE_API_URL: http://localhost:8000
+        VITE_WS_URL: ws://localhost:8000
+        VITE_DEMO_HUNT_ID: "11111111-1111-1111-1111-111111111111"
+    ports:
+      - "3000:3000"
+    depends_on:
+      - api
+
+volumes:
+  postgres-data:
