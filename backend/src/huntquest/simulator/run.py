@@ -68,7 +68,13 @@ async def walk_player(hunt_id: str, token: str, display_name: str, route: list[t
                 reply = await asyncio.wait_for(ws.recv(), timeout=0.05)
                 event = json.loads(reply)
                 if event.get("type") == "checkpoint_found":
-                    logger.info("%s's team found %s!", display_name, event["checkpoint_name"])
+                    # checkpoint_found is a hunt-wide broadcast -- every
+                    # connected client gets it, not just the team that found
+                    # it. Logging "found_by" (who the *server* says found
+                    # it) rather than this coroutine's own display_name
+                    # avoids implying every player found every checkpoint,
+                    # which the first version of this log line did.
+                    logger.info("%s found %s!", event["found_by"], event["checkpoint_name"])
             except asyncio.TimeoutError:
                 pass
             await asyncio.sleep(STEP_SECONDS)
