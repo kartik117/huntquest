@@ -1,0 +1,22 @@
+# This is the actual payoff of the Redis pub/sub fan-out in ws_manager.py --
+# without it, scaling api past 1 replica would silently break broadcasts for
+# any two players who happened to land on different pods.
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: huntquest-api
+  namespace: huntquest
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: huntquest-api
+  minReplicas: 2
+  maxReplicas: 6
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70

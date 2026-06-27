@@ -1,0 +1,24 @@
+# On real EKS, HUNTQUEST_DATABASE_URL and HUNTQUEST_REDIS_HOST would point at
+# RDS (Postgres) and ElastiCache (Redis) endpoints, not at in-cluster pods --
+# stateful databases inside EKS lose their disks when a node is replaced,
+# and neither RDS nor ElastiCache need a Kubernetes manifest at all, they're
+# provisioned with Terraform/the AWS console. This ConfigMap is the only
+# place that distinction lives: swap these two values for real RDS/
+# ElastiCache endpoints to go from "verified locally on kind" (see
+# k8s/local-dev/, which stands in Postgres+Redis pods only so these same
+# Deployments can be smoke-tested without an AWS account) to "deployed on
+# EKS" without touching api-deployment.yaml at all.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: huntquest-config
+  namespace: huntquest
+data:
+  HUNTQUEST_DATABASE_URL: "postgresql+psycopg://huntquest:huntquest@postgres.huntquest.svc.cluster.local:5432/huntquest"
+  HUNTQUEST_REDIS_HOST: "redis.huntquest.svc.cluster.local"
+  HUNTQUEST_REDIS_PORT: "6379"
+  # Real EKS example (commented out -- requires RDS/ElastiCache provisioned
+  # separately, e.g. via Terraform, and a Secret for the RDS password
+  # instead of the placeholder credentials above):
+  #   HUNTQUEST_DATABASE_URL: "postgresql+psycopg://huntquest:$(DB_PASSWORD)@huntquest-db.xxxxxxxxxxxx.us-west-2.rds.amazonaws.com:5432/huntquest"
+  #   HUNTQUEST_REDIS_HOST: "huntquest-cache.xxxxx.ng.0001.usw2.cache.amazonaws.com"

@@ -1,0 +1,44 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: huntquest-frontend
+  namespace: huntquest
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: huntquest-frontend
+  template:
+    metadata:
+      labels:
+        app: huntquest-frontend
+    spec:
+      containers:
+        - name: frontend
+          image: huntquest-frontend:local
+          ports:
+            - containerPort: 3000
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 3000
+            initialDelaySeconds: 2
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 200m
+              memory: 128Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: huntquest-frontend
+  namespace: huntquest
+spec:
+  selector:
+    app: huntquest-frontend
+  ports:
+    - port: 3000
+      targetPort: 3000

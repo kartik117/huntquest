@@ -1,0 +1,42 @@
+# Depends on migrate having already completed -- Kubernetes Jobs have no
+# native "depends_on" the way docker-compose does, so an initContainer
+# polls for the hunts table to exist instead of assuming ordering.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: huntquest-seed
+  namespace: huntquest
+spec:
+  backoffLimit: 2
+  template:
+    spec:
+      restartPolicy: Never
+      initContainers:
+        - name: wait-for-migrate
+          image: huntquest-api:local
+          command:
+            - python
+            - -c
+            - |
+              import time
+              from sqlalchemy import create_engine, inspect
+              from huntquest.config import settings
+
+              engine = create_engine(settings.database_url)
+              for _ in range(30):
+                  if "hunts" in inspect(engine).get_table_names():
+                      print("migrate has run, hunts table exists")
+                      raise SystemExit(0)
+                  print("waiting for migrate job...")
+                  time.sleep(2)
+              raise SystemExit("migrate never created the schema")
+          envFrom:
+            - configMapRef:
+                name: huntquest-config
+      containers:
+        - name: seed
+          image: huntquest-api:local
+          command: ["python", "-m", "huntquest.seed"]
+          envFrom:
+            - configMapRef:
+                name: huntquest-config

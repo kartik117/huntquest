@@ -1,0 +1,47 @@
+# Requires the AWS Load Balancer Controller installed on the cluster --
+# `alb` ingress class provisions a real Application Load Balancer on EKS.
+# Not verified against a real ALB here (that needs an actual AWS account);
+# verified instead with an ingress-nginx controller on a local kind cluster
+# to confirm the path routing itself is correct (see README).
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: huntquest
+  namespace: huntquest
+  annotations:
+    alb.ingress.kubernetes.io/scheme: internet-facing
+    alb.ingress.kubernetes.io/target-type: ip
+    alb.ingress.kubernetes.io/healthcheck-path: /health
+spec:
+  ingressClassName: alb
+  rules:
+    - http:
+        paths:
+          - path: /hunts
+            pathType: Prefix
+            backend:
+              service:
+                name: huntquest-api
+                port:
+                  number: 8000
+          - path: /ws
+            pathType: Prefix
+            backend:
+              service:
+                name: huntquest-api
+                port:
+                  number: 8000
+          - path: /health
+            pathType: Exact
+            backend:
+              service:
+                name: huntquest-api
+                port:
+                  number: 8000
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: huntquest-frontend
+                port:
+                  number: 3000

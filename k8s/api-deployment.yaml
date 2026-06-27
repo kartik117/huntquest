@@ -1,0 +1,54 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: huntquest-api
+  namespace: huntquest
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: huntquest-api
+  template:
+    metadata:
+      labels:
+        app: huntquest-api
+    spec:
+      containers:
+        - name: api
+          image: huntquest-api:local
+          ports:
+            - containerPort: 8000
+          envFrom:
+            - configMapRef:
+                name: huntquest-config
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 3
+            periodSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 10
+            periodSeconds: 15
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 256Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: huntquest-api
+  namespace: huntquest
+spec:
+  selector:
+    app: huntquest-api
+  ports:
+    - port: 8000
+      targetPort: 8000

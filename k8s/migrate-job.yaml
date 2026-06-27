@@ -1,0 +1,21 @@
+# Run once per deploy: `kubectl apply -f migrate-job.yaml --force` (Jobs are
+# immutable, so a fresh deploy needs a fresh Job -- the Jenkinsfile deletes
+# the old one first). Same one-shot-writer idea as the migrate service in
+# docker-compose, here as a Job instead of a container that exits 0.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: huntquest-migrate
+  namespace: huntquest
+spec:
+  backoffLimit: 2
+  template:
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: migrate
+          image: huntquest-api:local
+          command: ["python", "-m", "huntquest.migrate"]
+          envFrom:
+            - configMapRef:
+                name: huntquest-config
